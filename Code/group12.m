@@ -5,31 +5,24 @@ data = load('modal_extraction.mat');
 s = data.sensibility; 
 raw_data = data.measures/s;  % Displacements, by a vibrometer i think
 
-% Do we have 1 measuring point ??  - yes
-%  we can repeat measurements more than 1 time, yes, random input
+% Do we have 1 measuring point ??
+%  we can repeat measurements more than 1 time
 
 min_d = 0; % Looking at the data we chose a threshold, to discard
 % the initial time of nothing
 
 fs = data.fs;
 dt = 1/fs;
-N = length(data.measures); % Number of samples
-% If it's like in the labs, we should obtain from acquisition the same
-% number of samples for each column
 
-for ii=1:length(raw_data(:,1)) 
+for ii=1:length(raw_data(:,1)) % ! if they are column is 1,:
     index = find(d(ii,:) > min_d,'1','first');
     d(ii).data = d.raw_data(ii, index:end); % each data can have different 
-    % dimension... not in the lab, i let this in case it's the case
+    % dimension
     d(ii).t = 0:dt:dt*length(d(ii).data);
-    [d(ii).fft, d(ii).freq] = fft_n(hanning(N).*d(ii), fs);
 end
 
 % We now have n repitition of the random signal we gave
 % Problem: if the signal is random, we can't average to take out the noise
-% Solution: We go in frequency domain and compute FRF by estimators: Cross
-% and power spectra
-
 
 %% Solving for Circuit Component Values - Targeting Mode 1
 % Values supplied to us:
