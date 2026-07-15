@@ -11,21 +11,25 @@ overlap = .66; % -% like in lab 4
 % Compute expected value of power and cross spectra and estimate the FRF
 
 % Don't know which of these
-Data = load('modal_extraction.mat');
-input = Data.input; % Vector of the overall measurement
-output = Data.output;
+Data = load('DataAIsimulation.mat');
+input = Data.x; % Vector of the overall measurement
+output = Data.y;
 
 % [n,p]=uigetfile('.mat','choose the data file');
 % cd(p);
 % load(n);
 
-fs = Data.fs;
+fs = Data.fsamp;
 dt = 1/fs;
 N = length(output); % Any vector which is the long measurement
 
 t_vec = 0:dt:(N-1)*dt; % Global time vector
 
 figure
+subplot(2,1,1)
+plot (t_vec, input)
+grid on
+subplot(2,1,2)
 plot (t_vec, output) % This should plot the entire response in time
 grid on
 
@@ -84,14 +88,54 @@ hold on
 loglog(freq_xx, abs(H2))
 yyaxis("left")
 semilogx(freq_xx, coherence)
+
 % From these plots we should be able to choose the correct estimator
 %% Modal extraction
 
+% As we are dealing with only first 4 modes of a simple beam the HP of well 
+% separeted peaks is likely respected -> Sdof method shuld be reliable
 
+%Gjk(omega) = Ajk / (-omega^2+ 1i*2*csi + omega_i^2) + RLjk/omega^2 + RHjk
+% x = [om_i, csi_i, A_i, RL_i, RH_i];
 
+G_num = @(om,x) x(3) ./ (-omega.^2+ 1i*2*x(2)*omega*x(1) + x(1)^2) + x(4)./omega.^2 + x(5);
 
+G_exp = H1; 
+% or G_exp = H2 based on which one is the best esimatr
 
+[~, all_peaks] = findpeaks(abs(G_exp));
 
+n_modes = 4; 
+res_locs = all_peaks(1:n_modes);
 
+om_nat = freq_xx(res_locs) * 2*pi;
+dphase = diff(unwrap(angle(G_exp))) ./ diff(freq_xx*2*pi)';
+f_max = freq_xx(end);
+f_res = f_max/length(freq_xx);
 
+x = zeros(5,n_modes);
+
+for ii = 1:n_modes
+
+    % interval
+    range = 1; % hz
+    range_idx= res_locs(ii) - round(range/f_res) : res_locs(ii) + round(range*f_res);
+    om_int = freq_xx(range_idx) * 2*pi;
+
+    %initial guesses
+    x0(1) = om_nat(ii); %om_i
+    x0(2)= -1 ./ (dphase(res_locs(ii)) * om0_i); %csi0_i;
+    x0(3) = G_exp(res_locs(ii))*1i*x0(2)*x0(1).^2*2; %A_i
+    x0(4) = 0; %RL_i
+    x0(5) = 0; %RH_i
+
+    % error function
+    err = @(x) [
+        real(G_exp(range_idx,1) - G_num(om_int,x));  
+        imag(G_exp(range_idx,1) - G_num(om_int,x)); 
+        ];
+
+    x(:,ii) = lsqnonlin(err,x0,[],[],[]);
+
+end
 
