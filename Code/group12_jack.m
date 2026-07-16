@@ -11,9 +11,9 @@ overlap = .66; % -% like in lab 4
 % Compute expected value of power and cross spectra and estimate the FRF
 
 % Don't know which of these
-Data = load('DataAIsimulation.mat');
-input = Data.x; % Vector of the overall measurement
-output = Data.y;
+Data = load('Lab_04_staircase_empty.mat');
+input = Data.Data(:,1); % Vector of the overall measurement
+output = Data.Data(:,2);
 
 % [n,p]=uigetfile('.mat','choose the data file');
 % cd(p);
@@ -69,6 +69,7 @@ H2 = Gyy./Gyx;
 figure
 subplot(2,2,1)
 loglog(freq_xx, abs(H1))
+title('H1')
 grid on
 
 subplot(2,2,3)
@@ -77,6 +78,7 @@ grid on
 
 subplot(2,2,2)
 loglog(freq_xx, abs(H2))
+title('H2')
 grid on
 
 subplot(2,2,4)
@@ -88,6 +90,8 @@ hold on
 loglog(freq_xx, abs(H2))
 yyaxis("left")
 semilogx(freq_xx, coherence)
+grid on
+legend('H1','H2','coherence')
 
 % From these plots we should be able to choose the correct estimator
 %% Modal extraction
@@ -98,12 +102,12 @@ semilogx(freq_xx, coherence)
 %Gjk(omega) = Ajk / (-omega^2+ 1i*2*csi + omega_i^2) + RLjk/omega^2 + RHjk
 % x = [om_i, csi_i, A_i, RL_i, RH_i];
 
-G_num = @(om,x) x(3) ./ (-omega.^2+ 1i*2*x(2)*omega*x(1) + x(1)^2) + x(4)./omega.^2 + x(5);
+G_num = @(omega,x) x(3) ./ (-omega.^2+ 1i*2*x(2)*omega*x(1) + x(1)^2) + x(4)./omega.^2 + x(5);
 
-G_exp = H1; 
-% or G_exp = H2 based on which one is the best esimatr
+G_exp = H2; 
+% or G_exp = H1 based on which one is the best esimatr
 
-[~, all_peaks] = findpeaks(abs(G_exp));
+[~, all_peaks] = findpeaks(abs(G_exp),'MinPeakProminence', 0.2);
 
 n_modes = 4; 
 res_locs = all_peaks(1:n_modes);
@@ -118,24 +122,48 @@ x = zeros(5,n_modes);
 for ii = 1:n_modes
 
     % interval
-    range = 1; % hz
-    range_idx= res_locs(ii) - round(range/f_res) : res_locs(ii) + round(range*f_res);
-    om_int = freq_xx(range_idx) * 2*pi;
+    range = 0.5; % hz
+    range_idx(:,ii)= res_locs(ii) - round(range/f_res) : res_locs(ii) + round(range*f_res);
+    fs_int(:,ii) = freq_xx(range_idx(:,ii));
+    om_int(:,ii) = fs_int(:,ii) * 2*pi;
 
     %initial guesses
     x0(1) = om_nat(ii); %om_i
-    x0(2)= -1 ./ (dphase(res_locs(ii)) * om0_i); %csi0_i;
+    x0(2)= -1 ./ (dphase(res_locs(ii)) * x0(1)); %csi0_i;
     x0(3) = G_exp(res_locs(ii))*1i*x0(2)*x0(1).^2*2; %A_i
     x0(4) = 0; %RL_i
     x0(5) = 0; %RH_i
 
     % error function
     err = @(x) [
-        real(G_exp(range_idx,1) - G_num(om_int,x));  
-        imag(G_exp(range_idx,1) - G_num(om_int,x)); 
+        real(G_exp(range_idx(:,ii),1) - G_num(om_int(:,ii),x));  
+        imag(G_exp(range_idx(:,ii),1) - G_num(om_int(:,ii),x)); 
         ];
 
     x(:,ii) = lsqnonlin(err,x0,[],[],[]);
 
 end
 
+%% graphical check
+for ii = 1 : n_modes
+    %amplitudes
+    %experim FRF 
+    subplot(2,n_modes,ii)
+    semilogy(fs_int(:,ii),abs(G_exp(range_idx(:,ii))))
+    hold on
+    %extraolated numerical FRF
+    semilogy(fs_int(:,ii),abs(G_num(om_int(:,ii),x(:,ii))),'or');
+    grid on
+    tit = sprintf('Modo %d - f = %.2f Hz', ii, x(1,ii)/2/pi);
+    title(tit)
+
+    %phases
+    %experim FRF 
+    subplot(2,n_modes,ii+n_modes)
+    semilogy(fs_int(:,ii),angle(G_exp(range_idx(:,ii))))
+    hold on
+    %extraolated numerical FRF
+    semilogy(fs_int(:,ii),angle(G_num(om_int(:,ii),x(:,ii))),'or');
+    grid on
+
+end 
